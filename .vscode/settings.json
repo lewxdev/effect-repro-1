@@ -1,0 +1,8 @@
+{
+  "editor.defaultFormatter": "dprint.dprint",
+  "editor.formatOnSave": true,
+  "files.readonlyInclude": {
+    "node_modules/**": true,
+    "package-lock.json": true
+  }
+}

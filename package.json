@@ -1,0 +1,26 @@
+{
+  "scripts": {
+    "dev": "node --watch src/main.ts",
+    "fmt": "dprint fmt"
+  },
+  "dependencies": {
+    "@effect/platform": "0.94.1",
+    "@effect/platform-node": "0.104.0",
+    "effect": "3.19.14"
+  },
+  "devDependencies": {
+    "dprint": "0.51.1",
+    "@effect/vitest": "0.27.0"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "npm"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "^24"
+    }
+  },
+  "private": true,
+  "type": "module"
+}
