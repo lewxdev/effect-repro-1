@@ -4,11 +4,10 @@
     "fmt": "dprint fmt"
   },
   "dependencies": {
-    "@effect/platform": "0.94.1",
-    "effect": "3.19.14"
+    "effect": "https://pkg.pr.new/Effect-TS/effect-smol/effect@c396e51"
   },
   "devDependencies": {
-    "@effect/vitest": "0.27.0",
+    "@effect/vitest": "https://pkg.pr.new/Effect-TS/effect-smol/@effect/vitest@c396e51",
     "dprint": "0.51.1",
     "vitest": "3.2.4"
   },

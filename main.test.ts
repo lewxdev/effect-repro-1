@@ -1,6 +1,7 @@
-import { HttpClient, HttpClientResponse } from "@effect/platform";
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Fiber, Layer, Ref, Schedule, TestClock } from "effect";
+import { Effect, Fiber, Layer, Ref, Schedule } from "effect";
+import { TestClock } from "effect/testing";
+import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 
 const DURATION = 1000;
 const RECUR = 3;
@@ -14,7 +15,7 @@ const httpClient = HttpClient.make((request, url) =>
   })
 );
 
-const retryTransient = Layer.succeed(
+const httpClientWithRetryTransient = Layer.succeed(
   HttpClient.HttpClient,
   httpClient.pipe(
     HttpClient.retryTransient({
@@ -23,68 +24,29 @@ const retryTransient = Layer.succeed(
     }),
   ),
 );
-
-const retryTransientResponseOnly = Layer.succeed(
-  HttpClient.HttpClient,
-  httpClient.pipe(
-    HttpClient.retryTransient({
-      mode: "response-only",
-      schedule: Schedule.spaced(DURATION),
-      times: RECUR,
-      while: (response) => response.status === 408,
-    }),
-  ),
-);
-
-const testResponse = ({ status, isTransient }: { status: number; isTransient: boolean }) =>
-  Effect.gen(function*() {
-    const attemptsExpected = isTransient ? RECUR + 1 : 1;
-    const attemptsRef = yield* Ref.make(0);
-    const client = yield* Effect.map(
-      HttpClient.HttpClient,
-      HttpClient.tapRequest(() => Ref.update(attemptsRef, (n) => n + 1)),
-    );
-
-    const fiber = yield* Effect.fork(client.get(`http://_/${status}`));
-    yield* TestClock.adjust(DURATION * RECUR);
-
-    const response = yield* Fiber.join(fiber);
-    expect(response.status).toBe(status);
-    const attempts = yield* Ref.get(attemptsRef);
-    expect(attempts).toBe(attemptsExpected);
-  });
 
 describe("HttpClient.HttpClient", () => {
-  const responses = [
-    // HTTP 200 OK
-    { status: 200, isTransient: false },
+  it.layer(httpClientWithRetryTransient)("with retryTransient", ({ effect }) => {
+    effect.each([
+      { status: 200, isTransient: false },
+      { status: 408, isTransient: true },
+      { status: 500, isTransient: true },
+      { status: 501, isTransient: false },
+    ])("HTTP $status isTransient: $isTransient", ({ status, isTransient }) =>
+      Effect.gen(function*() {
+        const attemptsExpected = isTransient ? RECUR + 1 : 1;
+        const attemptsRef = yield* Ref.make(0);
+        const client = yield* HttpClient.HttpClient.useSync(
+          HttpClient.tapRequest(() => Ref.update(attemptsRef, (n) => n + 1)),
+        );
 
-    // HTTP 408 Request Timeout
-    // it SHOULD be considered transient, but `retryTransient` doesn't consider it transient
-    // even if we explicitly set the `while` Predicate to check for the 408 status in "response-only" mode
-    { status: 408, isTransient: true },
+        const fiber = yield* Effect.forkChild(client.get(`http://_/${status}`));
+        yield* TestClock.adjust(DURATION * RECUR);
 
-    // HTTP 500 Internal Server Error
-    // it SHOULD ALWAYS be considered transient, but if `retryTransient` is provided with a `while` Predicate
-    // that omits this status, it won't be retried
-    { status: 500, isTransient: true },
-
-    // HTTP 501 Not Implemented
-    // it SHOULD NEVER be considered transient, but `retryTransient` considers it transient
-    { status: 501, isTransient: false },
-  ];
-  const tests = [
-    { name: "retryTransient", layer: retryTransient },
-    { name: "retryTransient mode: 'response-only'", layer: retryTransientResponseOnly },
-  ];
-
-  for (const test of tests) {
-    describe(test.name, () => {
-      it.layer(test.layer)(({ effect }) => {
-        for (const opts of responses) {
-          effect(`GET /${opts.status}`, () => testResponse(opts));
-        }
-      });
-    });
-  }
+        const response = yield* Fiber.join(fiber);
+        expect(response.status).toBe(status);
+        const attempts = yield* Ref.get(attemptsRef);
+        expect(attempts).toBe(attemptsExpected);
+      }));
+  });
 });
